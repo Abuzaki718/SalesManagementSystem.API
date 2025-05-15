@@ -160,8 +160,13 @@ builder.Services.Configure<IdentityOptions>(options =>
 #endregion ===============================================================================================================
 var app = builder.Build();
 
+
 using (var scope = app.Services.CreateScope())
 {
+    var _context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    await _context.Database.MigrateAsync(); // Applies any pending migrations
+
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     await DataSeeder.SeedRoles(roleManager);
 }
