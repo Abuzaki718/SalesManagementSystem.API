@@ -8,7 +8,7 @@ namespace SalesManagementSystem.Core.Interfaces.Repositories;
 public interface IOrderRepository : IBaseRepository<Order>, IScopedInterface
 {
 
-    Task<BaseResponse<Order>> CreateOrder(CreateOrderDto order, string userId);
+    Task<BaseResponse<Order>> CreateOrder(CreateOrderItemDto[] order, string userId);
     Task<BaseResponse<GetOrderDto>> GetOrderById(int id);
 
     Task<BaseResponse<List<GetOrderDto>>> GetAllOrders();

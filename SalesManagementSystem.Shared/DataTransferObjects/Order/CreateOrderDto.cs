@@ -1,13 +1,6 @@
 ﻿namespace SalesManagementSystem.Shared.DataTransferObjects.Order;
 
-public class CreateOrderDto
-{
-    public string CustomerName { get; set; } = null!;
-    public DateTime OrderDate { get; set; }
 
-    public ICollection<CreateOrderItemDto>? OrderItems { get; set; }
-
-}
 
 public class CreateOrderItemDto
 {

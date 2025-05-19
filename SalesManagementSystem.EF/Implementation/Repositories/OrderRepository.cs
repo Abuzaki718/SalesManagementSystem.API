@@ -7,7 +7,7 @@ using SalesManagementSystem.Core.Interfaces.Repositories;
 using SalesManagementSystem.EF.DataContext;
 using SalesManagementSystem.Shared.DataTransferObjects.Order;
 using SalesManagementSystem.Shared.ResponseModles;
-
+using ProductQunity = (int id, int Quntity);
 namespace SalesManagementSystem.EF.Implementation.Repositories;
 
 public sealed class OrderRepository : BaseRepository<Order>, IOrderRepository
@@ -24,7 +24,7 @@ public sealed class OrderRepository : BaseRepository<Order>, IOrderRepository
         _logger = logger;
     }
 
-    public async Task<BaseResponse<Order>> CreateOrder(CreateOrderDto orderdto, string userId)
+    public async Task<BaseResponse<Order>> CreateOrder(CreateOrderItemDto[] orderdto, string userId)
     {
         try
         {
@@ -33,32 +33,45 @@ public sealed class OrderRepository : BaseRepository<Order>, IOrderRepository
             if (User is null)
                 return new BaseResponse<Order>(null, "User Not Found", success: false);
 
-            if (!orderdto.OrderItems.Any())
+            if (!orderdto.Any())
                 return new BaseResponse<Order>(null, "Order Items Not Found", success: false);
 
-
-            foreach (var item in orderdto.OrderItems)
+            List<ProductQunity> products = [];
+            foreach (var item in orderdto)
             {
-                var product = await _context.Products.FindAsync(item.ProductId);
 
-                if (product is null || product.Price != item.Price || product.StockQuantity < item.Quantity)
+
+                if (await _context.Products.AnyAsync(product => product.ProductId != item.ProductId || product.Price != item.Price || product.StockQuantity < item.Quantity))
                 {
                     return new BaseResponse<Order>(null, $"Product With Id {item.ProductId} Not Found Or Wrong Price or StockQuantity is over ", success: false);
 
                 }
-                if (product.StockQuantity <= 5)
-                {
-                    // I comet it becouze it is not a good practice to log in the repository
-                    //_logger.Log(LogLevel.Warning, "Product With Id {ProductId} Stock Quantity is Low", item.ProductId);
-                }
+
+                products.Add((item.ProductId, item.Quantity));
+
+
             }
 
+            await _context.Products.Where(p => products.Select(x => x.id).Contains(p.ProductId)).ForEachAsync(p =>
+                 {
+                     var product = products.FirstOrDefault(x => x.id == p.ProductId);
+                     p.StockQuantity -= product.Quntity;
+
+                     if (p.StockQuantity < 5)
+                     {
+                         _logger.Log(LogLevel.Warning, "Product With Id {ProductId} Stock Quantity is Low", p.ProductId);
+                     }
+                 });
+
+
+
+            await _context.SaveChangesAsync(); //Not A good practice to save changes in repository and this should be don using unit of work  but i will use transaction of unit of work to undo this on failure
 
             Order order = new Order
             {
                 CustomerName = User.FullName,
                 OrderDate = DateTime.Now,
-                OrderItems = orderdto.OrderItems == null ? null : orderdto.OrderItems.Select(p => new OrderItem
+                OrderItems = orderdto == null ? null : orderdto.Select(p => new OrderItem
                 {
 
                     ProductId = p.ProductId,
@@ -66,7 +79,7 @@ public sealed class OrderRepository : BaseRepository<Order>, IOrderRepository
                     UnitPrice = p.Price,
                 }).ToList(),
 
-                TotalAmount = orderdto.OrderItems!.Sum(x => x.Price * x.Quantity),
+                TotalAmount = orderdto!.Sum(x => x.Price * x.Quantity),
             };
 
             await _context.Orders.AddAsync(order);
